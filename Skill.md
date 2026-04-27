@@ -9,10 +9,10 @@ Autonomous data gathering agents that monitor on-chain events and off-chain mark
 - **Logic**: Filters for specific token pairs and large liquidity movements.
 
 ## 2. Agent Creation
-Seamless deployment of new agent instances using the **Opacus Agent SDK**.
+Seamless deployment of new agent instances using the **EthCredit Core SDK**.
 - **Process**:
-    1. Bootstrap via `POST /api/runtime/bootstrap`.
-    2. DID Issuance: `did:opacus:v1:0x...`.
+    1. Bootstrap via decentralized runtime handshake.
+    2. DID Issuance: `did:ethcredit:v1:0x...`.
     3. Registration in the global 0G discovery registry.
 - **Attributes**: Every agent has a unique H3 geospatial cell and a reputation score.
 
@@ -22,7 +22,7 @@ Secure asset management and yield optimization using Uniswap-based vaults.
 - **Features**: 
     - Automated liquidity provision.
     - Yield-bearing strategy execution.
-    - USDC escrow locks for task-based commissions (Opacus Escrow V2).
+    - USDC escrow locks for task-based commissions (EthCredit Escrow V2).
 
 ## 4. Swaps
 High-performance token swapping integrated directly into agent workflows.
@@ -36,4 +36,4 @@ High-performance token swapping integrated directly into agent workflows.
 Core agent activities powered by the Zero Gravity infrastructure.
 - **Storage**: Archival of agent logs and crawler data.
 - **Inference**: GPU-based AI inference nodes for complex decision making.
-- **Economy**: Settlement via USDC on the Opacus economy layer.
+- **Economy**: Settlement via USDC on the EthCredit economy layer.

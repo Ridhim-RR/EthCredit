@@ -9,7 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@uniswap/sdk-core": "^7.13.0",
+    "@uniswap/v3-sdk": "^3.30.0",
+    "ethers": "^6.13.1",
     "next": "16.2.4",
+    "opacus-agent-sdk": "^1.1.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
