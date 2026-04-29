@@ -2,7 +2,61 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+This repository uses separate package files for frontend and backend. The backend uses PostgreSQL with Prisma ORM.
+
+### Prerequisites
+
+- PostgreSQL running locally or via Docker
+- Node.js 18+
+
+### Installation
+
+#### Frontend Setup
+
+Install frontend dependencies in the frontend folder:
+
+```bash
+cd frontend
+npm install
+```
+
+#### Backend Setup
+
+Install backend dependencies in the backend folder:
+
+```bash
+cd backend
+npm install
+```
+
+Set up the database:
+
+1. Ensure PostgreSQL is running on localhost:5432 (or update `DATABASE_URL` in `backend/.env`)
+2. Copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL`:
+
+```bash
+cd backend
+cp .env.example .env
+# Edit .env and update DATABASE_URL (e.g., postgresql://postgres:password@localhost:5432/ethcredit)
+```
+
+3. Run database migrations:
+
+```bash
+cd backend
+npm run db:migrate
+```
+
+4. Generate Prisma client:
+
+```bash
+cd backend
+npm run prisma:generate
+```
+
+### Running the Application
+
+**Frontend only** (from project root):
 
 ```bash
 npm run dev
@@ -14,11 +68,49 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Backend only** (from project root):
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+```bash
+npm run dev:backend
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Both simultaneously** (from project root in separate terminals):
+
+Terminal 1:
+```bash
+npm run dev
+```
+
+Terminal 2:
+```bash
+npm run dev:backend
+```
+
+Open [http://localhost:3000](http://localhost:3000) to access the frontend. Backend API runs on `http://localhost:5000`.
+
+### Database
+
+- **Engine**: PostgreSQL
+- **ORM**: Prisma
+- **Migrations**: Located in `backend/db/migrations/` (SQL files)
+- **Schema Definition**: `backend/prisma/schema.prisma`
+
+#### Common Database Tasks
+
+List all agents:
+```bash
+curl http://localhost:5000/agents/list
+```
+
+Bootstrap default agent:
+```bash
+curl http://localhost:5000/agents/bootstrap
+```
+
+Check backend health:
+```bash
+curl http://localhost:5000/health
+```
 
 ## Learn More
 

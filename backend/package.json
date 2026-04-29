@@ -1,0 +1,26 @@
+{
+  "name": "eth-credit-backend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "prisma:generate": "prisma generate",
+    "db:migrate": "node scripts/migrate.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "@uniswap/sdk-core": "^7.13.0",
+    "@uniswap/v3-sdk": "^3.30.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.13.1",
+    "express": "^4.18.2",
+    "opacus-agent-sdk": "^1.1.0",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.1.0"
+  }
+}
