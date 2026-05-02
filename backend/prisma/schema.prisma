@@ -11,22 +11,40 @@ datasource db {
 }
 
 model Agent {
-  id                String             @id @default(cuid())
-  did               String             @unique @map("did")
-  agentId           String             @unique @map("agent_id")
-  walletAddress     String             @unique @map("wallet_address")
-  name              String             @unique
-  status            String             @default("active")
-  reputationScore   Float              @default(0) @map("reputation_score")
-  metadata          Json               @default("{}")
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
-  swapTransactions  SwapTransaction[]
+  id                    String             @id @default(cuid())
+  did                   String             @unique @map("did")
+  agentId               String             @unique @map("agent_id")
+  walletAddress         String             @unique @map("wallet_address")
+  internalWalletAddress  String?            @unique @map("internal_wallet_address")
+  encryptedPrivateKey    String?            @map("encrypted_private_key")
+  name                  String             @unique
+  status                String             @default("active")
+  reputationScore       Float              @default(0) @map("reputation_score")
+  metadata              Json               @default("{}")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  swapTransactions      SwapTransaction[]
+  vault                 Vault?
 
   @@index([status])
   @@index([walletAddress])
   @@index([did])
   @@map("agents")
+}
+
+model Vault {
+  id                  String   @id @default(cuid())
+  agentId             String   @unique @map("agent_id")
+  agent               Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  walletAddress       String   @unique @map("wallet_address")
+  encryptedPrivateKey String   @map("encrypted_private_key")
+  balance             Float    @default(0)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([agentId])
+  @@index([walletAddress])
+  @@map("vaults")
 }
 
 model SwapTransaction {

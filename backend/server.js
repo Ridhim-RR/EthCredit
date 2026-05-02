@@ -5,6 +5,8 @@ const prisma = require('./src/db/prisma');
 const agentCreationRouter = require('./routes/agentCreation');
 const agentsRouter = require('./routes/agents');
 const swapRouter = require('./routes/swap');
+const walletProvisioningRouter = require('./routes/walletProvisioning');
+const agentRegistryRouter = require('./routes/agentRegistry');
 
 dotenv.config();
 
@@ -35,13 +37,13 @@ app.get('/health', async (req, res) => {
 app.get('/routes', (req, res) => {
   try {
     const routes = [];
-    if (app._router && app._router.stack) {
+    if (app._router?.stack) {
       app._router.stack.forEach((middleware) => {
         if (middleware.route) {
           // routes registered directly on the app
           const methods = Object.keys(middleware.route.methods).map((m) => m.toUpperCase());
           routes.push({ path: middleware.route.path, methods });
-        } else if (middleware.name === 'router' && middleware.handle && middleware.handle.stack) {
+        } else if (middleware.name === 'router' && middleware.handle?.stack) {
           // router middleware
           middleware.handle.stack.forEach((handler) => {
             if (handler.route) {
@@ -63,6 +65,8 @@ app.get('/routes', (req, res) => {
 app.use('/agents', agentsRouter);
 app.use('/api/agent', agentCreationRouter);
 app.use('/swap', swapRouter);
+app.use('/', walletProvisioningRouter);
+app.use('/', agentRegistryRouter);
 
 /**
  * Initialize server with database readiness check.
