@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/backend/:path*"
+    },
+    {
+      "source": "/agent/:path*",
+      "destination": "/backend/agent/:path*"
+    },
+    {
+      "source": "/agents/:path*",
+      "destination": "/backend/agents/:path*"
+    },
+    {
+      "source": "/vaults/:path*",
+      "destination": "/backend/vaults/:path*"
+    },
+    {
+      "source": "/swap/:path*",
+      "destination": "/backend/swap/:path*"
+    }
+  ],
+  "experimentalServices": {
+    "frontend": {
+      "entrypoint": "frontend",
+      "routePrefix": "/"
+    },
+    "backend": {
+      "entrypoint": "backend",
+      "routePrefix": "/backend"
+    }
+  }
+}
