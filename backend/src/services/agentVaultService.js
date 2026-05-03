@@ -2,8 +2,21 @@ const crypto = require('node:crypto');
 const { ethers } = require('ethers');
 const prisma = require('../db/prisma');
 const walletService = require('./walletService');
+const balanceService = require('./balanceService');
 
 const EXPECTED_MESSAGE = 'Create EthCredit Agent';
+
+function normalizeBalance(balance) {
+  if (!balance || typeof balance !== 'object' || Array.isArray(balance)) {
+    const ethValue = typeof balance === 'number' ? balance : 0;
+    return { ETH: ethValue, USDC: 0 };
+  }
+
+  return {
+    ETH: Number(balance.ETH || 0),
+    USDC: Number(balance.USDC || 0),
+  };
+}
 
 function normalizeMetadata(metadata) {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
@@ -58,7 +71,7 @@ async function ensureAgentVault(agentId) {
         agentId: agent.id,
         walletAddress: wallet.address,
         encryptedPrivateKey,
-        balance: 0,
+        balance: { ETH: 0, USDC: 0 },
       },
     });
 
@@ -158,7 +171,7 @@ async function createAgentWithVault(data = {}) {
         agentId: agent.id,
         walletAddress: vaultWallet.address,
         encryptedPrivateKey,
-        balance: 0,
+        balance: { ETH: 0, USDC: 0 },
       },
     });
 
@@ -176,7 +189,7 @@ async function getAgentVaultByAgentId(agentId) {
     return null;
   }
 
-  return agent.vault ? { agent, vault: agent.vault } : null;
+  return agent.vault ? { agent, vault: { ...agent.vault, balance: normalizeBalance(agent.vault.balance) } } : null;
 }
 
 async function getAgentVaultByAgentIdentifier(agentIdentifier) {
@@ -190,11 +203,47 @@ async function getAgentVaultByAgentIdentifier(agentIdentifier) {
     return null;
   }
 
-  return agent.vault ? { agent, vault: agent.vault } : null;
+  return agent.vault ? { agent, vault: { ...agent.vault, balance: normalizeBalance(agent.vault.balance) } } : null;
+}
+
+async function refreshAgentVaultBalanceByAgentIdentifier(agentIdentifier) {
+  const result = await getAgentVaultByAgentIdentifier(agentIdentifier);
+  
+  if (!result?.agent) {
+    const error = new Error('Agent not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  
+  let vault = result.vault;
+  if (!vault) {
+    // Auto-provision vault if agent exists but vault is missing (legacy data)
+    const ensured = await ensureAgentVault(result.agent.id);
+    vault = ensured.vault;
+  }
+
+  try {
+    const refreshedBalance = await balanceService.getVaultBalances(vault.walletAddress);
+
+    const updatedVault = await prisma.vault.update({
+      where: { id: vault.id },
+      data: { balance: refreshedBalance },
+    });
+
+    return {
+      walletAddress: updatedVault.walletAddress,
+      balance: normalizeBalance(updatedVault.balance),
+    };
+  } catch (err) {
+    const error = new Error(`Failed to refresh vault balance: ${err.message}`);
+    error.statusCode = err.statusCode || 502;
+    throw error;
+  }
 }
 
 module.exports = {
   EXPECTED_MESSAGE,
+  normalizeBalance,
   createAgentId,
   createDid,
   verifySignature,
@@ -202,4 +251,5 @@ module.exports = {
   createAgentWithVault,
   getAgentVaultByAgentId,
   getAgentVaultByAgentIdentifier,
+  refreshAgentVaultBalanceByAgentIdentifier,
 };

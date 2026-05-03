@@ -5,8 +5,10 @@ const prisma = require('./src/db/prisma');
 const agentCreationRouter = require('./routes/agentCreation');
 const agentsRouter = require('./routes/agents');
 const swapRouter = require('./routes/swap');
+const escrowRouter = require('./routes/escrow');
 const walletProvisioningRouter = require('./routes/walletProvisioning');
 const agentRegistryRouter = require('./routes/agentRegistry');
+const agentRunnerRouter = require('./routes/agentRunner');
 
 dotenv.config();
 
@@ -65,6 +67,8 @@ app.get('/routes', (req, res) => {
 app.use('/agents', agentsRouter);
 app.use('/api/agent', agentCreationRouter);
 app.use('/swap', swapRouter);
+app.use('/escrow', escrowRouter);
+app.use('/agent', agentRunnerRouter);
 app.use('/', walletProvisioningRouter);
 app.use('/', agentRegistryRouter);
 

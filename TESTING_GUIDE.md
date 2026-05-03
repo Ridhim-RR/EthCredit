@@ -52,20 +52,9 @@ curl -X POST http://localhost:5000/agent/register \
 **Expected Response (200 OK):**
 ```json
 {
-  "success": true,
-  "agent": {
-    "id": "agent_abc123xyz",
-    "name": "TestAgent-001",
-    "did": "did:ethcredit:v1:0x...",
-    "internalWalletAddress": "0xF9b1A18f1587A902A9BAf078d25bd431F3D785cA",
-    "createdAt": "2026-05-02T10:30:00Z"
-  },
-  "vault": {
-    "id": "vault_123",
-    "walletAddress": "0xF9b1A18f1587A902A9BAf078d25bd431F3D785cA",
-    "balance": 0,
-    "createdAt": "2026-05-02T10:30:00Z"
-  }
+  "agentId": "0056d0d93228a25e34b0494ac61e24abfe365f2fa141545d1a2cd1961c17a0fb",
+  "did": "did:ethcredit:v1:0x2e1386ce8a3fac24d059688f1b28e7ee492d21f3",
+  "walletAddress": "0x20F8D91E2AbE06b6169D5D22EC85b1968BB35913"
 }
 ```
 
@@ -97,13 +86,307 @@ curl -X GET http://localhost:5000/agent/c689d1e75122fae01279640a6cec3ef31f30484f
 ```json
 {
   "walletAddress": "0x51db55d416aDBaE6D18F9Cfc390AA6fAAA6140fd",
-  "balance": 0
+  "balance": {
+    "ETH": 0,
+    "USDC": 0
+  }
+}
+```
+
+### STEP 3: Refresh On-Chain Vault Balance
+
+Use this endpoint after funding the vault wallet (ETH or USDC) to sync DB balance from chain.
+
+**Using cURL:**
+```bash
+curl -X POST http://localhost:5000/agent/{AGENT_ID}/refresh-balance \
+  -H "Content-Type: application/json"
+```
+
+**Expected Response (200 OK):**
+```json
+{
+---
+
+## Swap Execution Testing (Backend-Driven)
+
+Test the backend-driven swap execution flow. Swaps are executed by the backend using vault wallets on **Base Sepolia testnet only**.
+
+**Prerequisites:**
+- Fund vault wallet with USDC or WETH on Base Sepolia testnet
+- Configure `RPC_URL` in `.env` (e.g., `https://sepolia.base.org`)
+- Agent and vault must exist (from STEP 1-2 above)
+
+### STEP 1: Get Token Catalog
+
+Retrieve available tokens for swaps.
+
+**Using cURL:**
+```bash
+curl -X GET http://localhost:5000/swap/tokens \
+  -H "Content-Type: application/json"
+```
+
+**Expected Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "Wrapped Ether",
+      "symbol": "WETH",
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18
+    },
+    {
+      "name": "USD Coin",
+      "symbol": "USDC",
+      "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "decimals": 6
+    }
+  ]
+}
+```
+
+### STEP 2: Get Swap Quote (Placeholder)
+
+Check if a token pair is valid before executing.
+
+**Using cURL:**
+```bash
+curl -X POST http://localhost:5000/swap/quote \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tokenIn": "USDC",
+    "tokenOut": "WETH",
+    "amount": "100000000"
+  }'
+```
+
+**Expected Response (200 OK):**
+```json
+{
+  "tokenIn": "USDC",
+  "tokenOut": "WETH",
+  "amountIn": "100000000",
+  "message": "Quote service coming soon"
+}
+```
+
+**Error Response (400 Bad Request) - Invalid Pair:**
+```json
+{
+  "error": "Invalid token pair: DAI -> USDC. Only USDC <-> WETH swaps are supported."
+}
+```
+
+### STEP 3: Execute Backend-Driven Swap
+
+Execute a swap using the vault wallet. The backend:
+1. Validates sufficient balance
+2. Checks token approvals
+3. Executes swap on Uniswap V3
+4. Logs transaction to database
+
+**IMPORTANT: Only USDC ↔ WETH swaps are supported. 3% fixed slippage is applied.**
+
+**Using cURL:**
+```bash
+curl -X POST http://localhost:5000/swap/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "{AGENT_ID}",
+    "tokenIn": "USDC",
+    "tokenOut": "WETH",
+    "amount": "1000000"
+  }'
+```
+
+**Replace:**
+- `{AGENT_ID}` with actual agent ID from STEP 1 of Agent Flow
+- `amount` with desired amount in wei (e.g., 1000000 = 1 USDC with 6 decimals)
+
+**Example:**
+```bash
+curl -X POST http://localhost:5000/swap/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "0056d0d93228a25e34b0494ac61e24abfe365f2fa141545d1a2cd1961c17a0fb",
+    "tokenIn": "USDC",
+    "tokenOut": "WETH",
+    "amount": "1000000"
+  }'
+```
+
+**Expected Response (200 OK) - Success:**
+```json
+{
+  "status": "SUCCESS",
+  "agentId": "0056d0d93228a25e34b0494ac61e24abfe365f2fa141545d1a2cd1961c17a0fb",
+  "walletAddress": "0x51db55d416aDBaE6D18F9Cfc390AA6fAAA6140fd",
+  "tokenIn": "USDC",
+  "tokenOut": "WETH",
+  "amount": "1000000",
+  "currentBalance": {
+    "ETH": 0.05,
+    "USDC": 5.0
+  },
+  "approval": {
+    "needsApproval": true,
+    "txHash": "0xabc123...",
+    "status": "APPROVED"
+  },
+  "txHash": "0xdef456...",
+  "logId": "tx_123456"
+}
+```
+
+**Error Response (400 Bad Request) - Insufficient Balance:**
+```json
+{
+  "error": "Insufficient USDC balance. Required: 100 USDC, Available: 5 USDC"
+}
+```
+
+**Error Response (400 Bad Request) - Invalid Token Pair:**
+```json
+{
+  "error": "Invalid token pair: DAI -> USDC. Only USDC <-> WETH swaps are supported."
+}
+```
+
+**Error Response (404 Not Found) - Agent Not Found:**
+```json
+{
+  "error": "Agent or vault not found"
+}
+```
+
+**Error Response (500 Internal Server Error) - Approval Failed:**
+```json
+{
+  "error": "Approval execution failed: transaction failed"
+}
+```
+
+**Error Response (502 Bad Gateway) - RPC Unavailable:**
+```json
+{
+  "error": "Balance validation failed: network request failed"
+}
+```
+
+### STEP 4: Retrieve Swap Transaction History
+
+Get all swap transactions for a vault wallet.
+
+**Using cURL:**
+```bash
+curl -X GET "http://localhost:5000/swap/history/{WALLET_ADDRESS}?limit=10" \
+  -H "Content-Type: application/json"
+```
+
+**Replace `{WALLET_ADDRESS}` with vault wallet address from STEP 2 of Agent Flow**
+
+**Example:**
+```bash
+curl -X GET "http://localhost:5000/swap/history/0x51db55d416aDBaE6D18F9Cfc390AA6fAAA6140fd?limit=10"
+```
+
+**Expected Response (200 OK):**
+```json
+{
+  "transactions": [
+    {
+      "id": "tx_123456",
+      "agentId": "0056d0d93228a25e34b0494ac61e24abfe365f2fa141545d1a2cd1961c17a0fb",
+      "walletAddress": "0x51db55d416aDBaE6D18F9Cfc390AA6fAAA6140fd",
+      "tokenIn": "USDC",
+      "tokenOut": "WETH",
+      "amount": "1000000",
+      "txHash": "0xdef456...",
+      "status": "SUCCESS",
+      "source": "backend-driven",
+      "createdAt": "2026-05-02T12:34:56.000Z"
+    }
+  ]
+}
+```
+
+### STEP 5: Manual Swap Logging (Frontend Integration)
+
+Log swap transactions that were executed via frontend/MetaMask.
+
+**Using cURL:**
+```bash
+curl -X POST http://localhost:5000/swap/log \
+  -H "Content-Type: application/json" \
+  -d '{
+    "walletAddress": "{WALLET_ADDRESS}",
+    "agentId": "{AGENT_ID}",
+    "tokenIn": "USDC",
+    "tokenOut": "WETH",
+    "amount": "500000",
+    "txHash": "0xabc123...",
+    "status": "success"
+  }'
+```
+
+**Expected Response (200 OK):**
+```json
+{
+  "success": true,
+  "transactionId": "tx_789101",
+  "transaction": {
+    "id": "tx_789101",
+    "agentId": "0056d0d93228a25e34b0494ac61e24abfe365f2fa141545d1a2cd1961c17a0fb",
+    "walletAddress": "0x51db55d416aDBaE6D18F9Cfc390AA6fAAA6140fd",
+    "tokenIn": "USDC",
+    "tokenOut": "WETH",
+    "amount": "500000",
+    "txHash": "0xabc123...",
+    "status": "success",
+    "source": "manual"
+  }
+}
+```
+
+### STEP 6: Update Transaction Status
+
+Update the status of a swap transaction after on-chain confirmation.
+
+**Using cURL:**
+```bash
+curl -X PATCH http://localhost:5000/swap/{TX_ID}/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "confirmed",
+    "txHash": "0xdef456..."
+  }'
+```
+
+**Expected Response (200 OK):**
+```json
+{
+  "success": true,
+  "transaction": {
+    "id": "tx_123456",
+    "status": "confirmed",
+    "txHash": "0xdef456..."
+  }
+}
+```
+
+  "balance": {
+    "ETH": 0,
+    "USDC": 0
+  }
 }
 ```
 
 ---
 
-### STEP 3: Create Agent with Signature Verification (Optional Flow)
+### STEP 4: Create Agent with Signature Verification (Optional Flow)
 
 This flow requires generating a signature from an existing wallet (e.g., MetaMask).
 
@@ -165,18 +448,8 @@ curl -X POST http://localhost:5000/register-agent \
 **Expected Response (200 OK):**
 ```json
 {
-  "success": true,
-  "agent": {
-    "id": "agent_sig123xyz",
-    "did": "did:ethcredit:v1:0x...",
-    "internalWalletAddress": "0x...",
-    "createdAt": "2026-05-02T10:30:00Z"
-  },
-  "vault": {
-    "id": "vault_456",
-    "walletAddress": "0x...",
-    "balance": 0
-  }
+  "agentId": "agent_sig123xyz",
+  "did": "did:ethcredit:v1:0x..."
 }
 ```
 
@@ -235,7 +508,21 @@ Import this JSON into Postman to test all endpoints at once.
       "response": []
     },
     {
-      "name": "3. Create Agent (Signature-Verified)",
+      "name": "3. Refresh Vault Balance",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:5000/agent/{{AGENT_ID}}/refresh-balance",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      },
+      "response": []
+    },
+    {
+      "name": "4. Create Agent (Signature-Verified)",
       "request": {
         "method": "POST",
         "url": "http://localhost:5000/register-agent",
@@ -257,7 +544,8 @@ Import this JSON into Postman to test all endpoints at once.
     {
       "key": "AGENT_ID",
       "value": "",
-      "type": "string"
+      "type": "string",
+      "description": "Public agentId returned by POST /agent/register"
     }
   ]
 }
@@ -334,6 +622,20 @@ curl -X POST http://localhost:5000/register-agent \
 
 ---
 
+### Error 5: Refresh Balance RPC Error (502)
+```json
+{
+  "error": "Failed to refresh vault balance: connect ECONNREFUSED 127.0.0.1:8545"
+}
+```
+
+**Fix:**
+- Set a reachable RPC endpoint in `.env` (recommended): `RPC_URL=https://sepolia.base.org`
+- Or configure `BASE_SEPOLIA_RPC_URL` and ensure outbound network access
+- Retry `POST /agent/{AGENT_ID}/refresh-balance`
+
+---
+
 ## Full Testing Workflow (Copy-Paste Ready)
 
 ### Terminal 1: Backend Server
@@ -357,16 +659,20 @@ echo "Create Agent Response:"
 echo "$AGENT_RESPONSE" | jq .
 
 # Extract Agent ID
-  AGENT_ID=$(echo "$AGENT_RESPONSE" | jq -r '.agentId')
+AGENT_ID=$(echo "$AGENT_RESPONSE" | jq -r '.agentId')
 echo "Extracted Agent ID: $AGENT_ID"
-    {
-      "key": "AGENT_ID",
-      "value": "",
-      "type": "string",
-      "description": "Public agentId returned by create response (use as {{AGENT_ID}})"
-    }
 
-# Test 3: Create Multiple Agents
+# Test 2: Get Vault Details
+echo -e "\n\nGet Vault Response:"
+curl -X GET http://localhost:5000/agent/$AGENT_ID/vault \
+  -H "Content-Type: application/json" | jq .
+
+# Test 3: Refresh Vault Balance From Chain
+echo -e "\n\nRefresh Balance Response:"
+curl -X POST http://localhost:5000/agent/$AGENT_ID/refresh-balance \
+  -H "Content-Type: application/json" | jq .
+
+# Test 4: Create Multiple Agents
 echo -e "\n\nCreate Second Agent:"
 curl -X POST http://localhost:5000/agent/register \
   -H "Content-Type: application/json" \
@@ -466,6 +772,9 @@ curl -X POST http://localhost:5000/agent/register \
 
 # Get agent vault (replace AGENT_ID)
 curl -X GET http://localhost:5000/agent/AGENT_ID/vault
+
+# Refresh agent vault balance from chain (replace AGENT_ID)
+curl -X POST http://localhost:5000/agent/AGENT_ID/refresh-balance
 ```
 
 ---

@@ -11,6 +11,7 @@
     "test:agent-vault": "node tests/integration/agentVaultFlow.test.js"
   },
   "dependencies": {
+    "@0gfoundation/0g-storage-ts-sdk": "^1.2.8",
     "@prisma/client": "^6.1.0",
     "@uniswap/sdk-core": "^7.13.0",
     "@uniswap/v3-sdk": "^3.30.0",
@@ -19,6 +20,7 @@
     "ethers": "^6.13.1",
     "express": "^4.18.2",
     "opacus-agent-sdk": "^1.1.0",
+    "openai": "^6.35.0",
     "pg": "^8.11.3",
     "tweetnacl": "^1.0.3"
   },

@@ -63,13 +63,35 @@ async function testAgentRegisterFlow() {
     'Reconstructed wallet address does not match stored vault walletAddress'
   );
 
-  const vaultResponse = await requestJson(`/agent/${agent.id}/vault`, {
+  const vaultResponse = await requestJson(`/agent/${agent.agentId}/vault`, {
     method: 'GET',
   });
 
   assert(vaultResponse.status === 200, `Expected 200 from /agent/:id/vault, got ${vaultResponse.status}`);
   assert(vaultResponse.body?.walletAddress === agent.vault.walletAddress, 'Vault API returned the wrong walletAddress');
-  assert(typeof vaultResponse.body?.balance === 'number', 'Vault API did not return balance as a number');
+  assert(typeof vaultResponse.body?.balance === 'object', 'Vault API did not return balance as an object');
+  assert(typeof vaultResponse.body?.balance?.ETH === 'number', 'Vault API missing ETH balance number');
+  assert(typeof vaultResponse.body?.balance?.USDC === 'number', 'Vault API missing USDC balance number');
+
+  const refreshResponse = await requestJson(`/agent/${agent.agentId}/refresh-balance`, {
+    method: 'POST',
+  });
+
+  // RPC can fail in local/offline environments; this still validates route behavior.
+  if (refreshResponse.status === 200) {
+    assert(
+      refreshResponse.body?.walletAddress === agent.vault.walletAddress,
+      'Refresh API returned the wrong walletAddress'
+    );
+    assert(typeof refreshResponse.body?.balance?.ETH === 'number', 'Refresh API missing ETH balance');
+    assert(typeof refreshResponse.body?.balance?.USDC === 'number', 'Refresh API missing USDC balance');
+  } else {
+    assert(
+      refreshResponse.status === 500 || refreshResponse.status === 502,
+      `Expected 200 or RPC error from refresh endpoint, got ${refreshResponse.status}`
+    );
+    assert(typeof refreshResponse.body?.error === 'string', 'Refresh error response missing error message');
+  }
 
   await prisma.agent.delete({ where: { id: agent.id } });
 

@@ -1,5 +1,10 @@
 const express = require('express');
-const { createAgentWithVault, getAgentVaultByAgentId, getAgentVaultByAgentIdentifier } = require('../src/services/agentVaultService');
+const {
+  createAgentWithVault,
+  getAgentVaultByAgentId,
+  getAgentVaultByAgentIdentifier,
+  refreshAgentVaultBalanceByAgentIdentifier,
+} = require('../src/services/agentVaultService');
 
 const router = express.Router();
 
@@ -50,6 +55,21 @@ router.get('/agent/:id/vault', async (req, res) => {
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ error: error.message || 'Failed to fetch vault' });
+  }
+});
+
+router.post('/agent/:id/refresh-balance', async (req, res) => {
+  try {
+    const { id: agentId } = req.params;
+    const refreshed = await refreshAgentVaultBalanceByAgentIdentifier(agentId);
+
+    return res.json({
+      walletAddress: refreshed.walletAddress,
+      balance: refreshed.balance,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ error: error.message || 'Failed to refresh balance' });
   }
 });
 

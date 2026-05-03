@@ -24,6 +24,7 @@ model Agent {
   createdAt             DateTime           @default(now()) @map("created_at")
   updatedAt             DateTime           @updatedAt @map("updated_at")
   swapTransactions      SwapTransaction[]
+  escrows               Escrow[]
   vault                 Vault?
 
   @@index([status])
@@ -38,7 +39,8 @@ model Vault {
   agent               Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   walletAddress       String   @unique @map("wallet_address")
   encryptedPrivateKey String   @map("encrypted_private_key")
-  balance             Float    @default(0)
+  balance             Json     @default("{\"ETH\":0,\"USDC\":0}")
+  lockedBalance       Json     @default("{}") @map("locked_balance")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
@@ -67,4 +69,41 @@ model SwapTransaction {
   @@index([source])
   @@index([createdAt])
   @@map("swap_transactions")
+}
+
+enum EscrowStatus {
+  LOCKED
+  RELEASED
+  REFUNDED
+}
+
+model Escrow {
+  id         String       @id @default(cuid())
+  agentId    String       @map("agent_id")
+  agent      Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  userId     String?      @map("user_id")
+  token      String
+  amount     String
+  status     EscrowStatus @default(LOCKED)
+  txHash     String?      @map("tx_hash")
+  storageHash String?     @map("storage_hash")
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  @@index([agentId])
+  @@index([status])
+  @@map("escrows")
+}
+
+model TransactionLog {
+  id        String   @id @default(cuid())
+  agentId   String   @map("agent_id")
+  type      String
+  txHash    String   @map("tx_hash")
+  rootHash  String   @map("root_hash")
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([agentId])
+  @@map("transaction_logs")
 }
