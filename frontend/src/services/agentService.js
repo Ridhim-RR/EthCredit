@@ -43,12 +43,31 @@ export const AgentService = {
   /**
    * Search for other agents in the 0G global registry.
    */
-  async findAgents(query) {
-    // Mocking discovery call for now as per REST API docs
-    // const response = await fetch(`${OPACUS_API}/discovery/search?q=${query}`);
-    return [
-      { did: 'did:opacus:v1:0x123', name: 'PriceOracle', score: 98 },
-      { did: 'did:opacus:v1:0x456', name: 'LiquidityBot', score: 95 },
-    ];
+  async findAgents() {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/agents/list`, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to fetch agents');
+      }
+
+      // Backend returns { success: true, agents: [...] }
+      // Map to frontend expected shape if necessary
+      return (data.agents || []).map(agent => ({
+        did: agent.did,
+        name: agent.name || `Agent-${agent.agentId.substring(0, 8)}`,
+        score: agent.reputationScore || 0,
+        agentId: agent.agentId,
+      }));
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      return [];
+    }
   }
 };

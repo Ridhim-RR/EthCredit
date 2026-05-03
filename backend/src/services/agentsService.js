@@ -16,7 +16,12 @@ async function listAgents(status = null) {
       where,
       orderBy: { createdAt: 'desc' },
     });
-    return agents;
+    
+    // Alias reputationScore to score for frontend compatibility
+    return agents.map(agent => ({
+      ...agent,
+      score: agent.reputationScore
+    }));
   } catch (err) {
     console.error('Error listing agents:', err.message);
     throw err;

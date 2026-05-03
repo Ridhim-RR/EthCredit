@@ -156,7 +156,6 @@ async function executeExactInputSingle({ signer, tokenIn, tokenOut, amountIn, ro
     tokenOut,
     fee: SWAP_FEE_TIER,
     recipient,
-    deadline,
     amountIn,
     amountOutMinimum: 0n,
     sqrtPriceLimitX96: 0n,
@@ -221,6 +220,32 @@ export async function runAgentSwap() {
     swap,
     explorerBaseUrl: BASE_SEPOLIA_EXPLORER_BASE,
   };
+}
+
+/**
+ * Fetch a live quote for the given token pair and amount.
+ */
+async function getQuote({ tokenIn, tokenOut, amount }) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/swap/quote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tokenIn, tokenOut, amount }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error || 'Failed to get quote');
+    }
+
+    return data;
+  } catch (err) {
+    console.error('Error fetching quote:', err.message);
+    throw err;
+  }
 }
 
 /**
@@ -333,6 +358,7 @@ export const SwapService = {
   getTokenDecimals,
   executeExactInputSingle,
   runAgentSwap,
+  getQuote,
   logSwapTransaction,
   executeManualSwap,
 };

@@ -135,6 +135,8 @@ export default function SwapPage() {
   const [tokenInAddress, setTokenInAddress] = useState('');
   const [tokenOutAddress, setTokenOutAddress] = useState('');
   const [amount, setAmount] = useState('');
+  const [quote, setQuote] = useState(null);
+  const [quoting, setQuoting] = useState(false);
 
   const tokenByAddress = useMemo(() => {
     return (catalog?.tokens || []).reduce((accumulator, token) => {
@@ -145,6 +147,31 @@ export default function SwapPage() {
 
   const tokenIn = tokenInAddress ? tokenByAddress[tokenInAddress.toLowerCase()] : null;
   const tokenOut = tokenOutAddress ? tokenByAddress[tokenOutAddress.toLowerCase()] : null;
+
+  useEffect(() => {
+    if (!amount || Number(amount) <= 0 || !tokenInAddress || !tokenOutAddress) {
+      setQuote(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setQuoting(true);
+      try {
+        const result = await SwapService.getQuote({
+          tokenIn: tokenInAddress,
+          tokenOut: tokenOutAddress,
+          amount,
+        });
+        setQuote(result);
+      } catch (err) {
+        console.error('Quote error:', err);
+      } finally {
+        setQuoting(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [amount, tokenInAddress, tokenOutAddress]);
 
   const quickPairs = useMemo(() => {
     const weth = (catalog?.tokens || []).find((token) => token.symbol === 'WETH');
@@ -394,68 +421,111 @@ export default function SwapPage() {
           />
         </div>
 
+        {/* Quote Display */}
+        <div style={{ marginBottom: '1.5rem', minHeight: '3.8rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          {quoting ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6 }}>
+              <div className="spinner-small" />
+              <p style={{ fontSize: '0.9rem', margin: 0 }}>Scanning liquidity pools...</p>
+            </div>
+          ) : quote ? (
+            <div style={{ 
+              padding: '1rem', 
+              borderRadius: '12px', 
+              background: 'rgba(99, 102, 241, 0.08)', 
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)',
+              animation: 'fade-in 0.3s ease-out'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>Estimated Output</span>
+                <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', fontWeight: '600' }}>BEST PRICE</span>
+              </div>
+              <p style={{ fontSize: '1.25rem', fontWeight: '700', margin: '0.25rem 0 0 0', color: '#fff', letterSpacing: '0.02em' }}>
+                {quote?.amountOutFormatted ? Number(quote.amountOutFormatted).toFixed(6) : '0.000000'} <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>{tokenOut?.symbol}</span>
+              </p>
+            </div>
+          ) : amount && (
+            <p style={{ fontSize: '0.9rem', opacity: 0.5, margin: 0, textAlign: 'center' }}>Select a valid pair to see conversion</p>
+          )}
+        </div>
+
         {/* Execute Button */}
         <button
           className="btn-primary"
-          style={{ width: '100%', padding: '1.2rem' }}
+          style={{ 
+            width: '100%', 
+            padding: '1.25rem', 
+            fontSize: '1rem', 
+            fontWeight: 'bold', 
+            letterSpacing: '0.05em',
+            boxShadow: '0 4px 20px rgba(99, 102, 241, 0.3)'
+          }}
           onClick={handleSwap}
-          disabled={loading || !amount}
+          disabled={loading || !amount || quoting}
         >
-          {loading ? 'Executing Swap...' : 'Execute Swap'}
+          {loading ? (
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+              <div className="spinner-small" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />
+              EXECUTING ON-CHAIN...
+            </span>
+          ) : 'EXECUTE SWAP'}
         </button>
 
         {/* Error Message */}
         {error && (
-          <div style={{ marginTop: '1.5rem', padding: '1rem', borderRadius: '8px', background: '#fff1f0', color: '#8c1d18', fontSize: '0.95rem' }}>
-            ⚠️ {error}
+          <div style={{ marginTop: '1.5rem', padding: '1rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#fca5a5', fontSize: '0.95rem' }}>
+            <span style={{ marginRight: '0.5rem' }}>⚠️</span> {error}
           </div>
         )}
 
         {/* Success Result */}
         {result && (
-          <div style={{ marginTop: '1.5rem', padding: '1rem', borderRadius: '12px', background: '#fff7ed', fontSize: '0.95rem', display: 'grid', gap: '0.8rem' }}>
-            <div style={{ color: '#166534', fontWeight: 'bold' }}>✓ Swap Successful!</div>
-            <div>
-              <strong>From:</strong> {result.tokenIn.slice(0, 6)}...{result.tokenIn.slice(-4)} ({tokenIn?.name})
+          <div style={{ 
+            marginTop: '2rem', 
+            padding: '1.5rem', 
+            borderRadius: '16px', 
+            background: 'rgba(10, 12, 24, 0.6)', 
+            border: '1px solid rgba(34, 197, 94, 0.3)',
+            boxShadow: '0 0 30px rgba(34, 197, 94, 0.1)',
+            fontSize: '0.95rem', 
+            display: 'grid', 
+            gap: '1rem',
+            animation: 'slide-up 0.4s ease-out'
+          }}>
+            <div style={{ color: '#4ade80', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: '#4ade80', color: '#000', fontSize: '0.75rem' }}>✓</span>
+              SWAP COMPLETED SUCCESSFULLY
             </div>
-            <div>
-              <strong>To:</strong> {result.tokenOut.slice(0, 6)}...{result.tokenOut.slice(-4)} ({tokenOut?.name})
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)' }}>
+                <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Sent</div>
+                <div style={{ fontWeight: '600' }}>{result.amount} {tokenIn?.symbol}</div>
+              </div>
+              <div style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)' }}>
+                <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Received</div>
+                <div style={{ fontWeight: '600' }}>{quote?.amountOutFormatted ? Number(quote.amountOutFormatted).toFixed(6) : '---'} {tokenOut?.symbol}</div>
+              </div>
             </div>
-            <div>
-              <strong>Amount:</strong> {result.amount} {tokenIn?.name}
-            </div>
-            <div>
-              <strong>Wallet:</strong> {result.walletAddress.slice(0, 6)}...{result.walletAddress.slice(-4)}
-            </div>
-            <div>
-              <strong>Swap TX:</strong>{' '}
-              <a
-                href={`${result.explorerBaseUrl}${result.swap.txHash}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: '#6366f1', textDecoration: 'underline' }}
-              >
-                {result.swap.txHash.slice(0, 10)}...
-              </a>
-            </div>
-            {!result.approval.skipped && (
-              <div>
-                <strong>Approval TX:</strong>{' '}
+
+            <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', display: 'grid', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Wallet:</span>
+                <span style={{ fontFamily: 'monospace', color: '#fff' }}>{result.walletAddress.slice(0, 6)}...{result.walletAddress.slice(-4)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Transaction:</span>
                 <a
-                  href={`${result.explorerBaseUrl}${result.approval.txHash}`}
+                  href={`${result.explorerBaseUrl}${result.swap.txHash}`}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: '#6366f1', textDecoration: 'underline' }}
+                  style={{ color: '#6366f1', textDecoration: 'none', borderBottom: '1px dashed #6366f1', fontFamily: 'monospace' }}
                 >
-                  {result.approval.txHash.slice(0, 10)}...
+                  {result.swap.txHash.slice(0, 10)}...
                 </a>
               </div>
-            )}
-            {result.dbTransaction && (
-              <div style={{ fontSize: '0.85rem', opacity: 0.8 }}>
-                <strong>DB Record:</strong> {result.dbTransaction.transactionId?.slice(0, 8)}...
-              </div>
-            )}
+            </div>
           </div>
         )}
       </div>

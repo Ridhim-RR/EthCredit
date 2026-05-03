@@ -21,9 +21,26 @@ async function logSwapTransaction(swapData) {
         amount: amount.toString(),
         txHash: txHash || null,
         status,
-        source: 'manual',
+        source: agentId ? 'agent' : 'manual',
       },
     });
+
+    // Increment agent reputation score if swap was successful
+    if (agentId && agentId !== 'default' && status === 'SUCCESS') {
+      try {
+        await prisma.agent.update({
+          where: { id: agentId },
+          data: {
+            reputationScore: {
+              increment: 10
+            }
+          }
+        });
+        console.log(`[swapService] Incremented reputation score for agent ${agentId} (+10)`);
+      } catch (err) {
+        console.warn(`[swapService] Failed to increment reputation score for agent ${agentId}:`, err.message);
+      }
+    }
 
     return {
       success: true,

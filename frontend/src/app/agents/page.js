@@ -9,12 +9,14 @@ export default function AgentsPage() {
   const [createdAgentId, setCreatedAgentId] = useState('');
   const [createError, setCreateError] = useState('');
 
+  const fetchAgents = async () => {
+    setLoading(true);
+    const data = await AgentService.findAgents();
+    setAgents(data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const fetchAgents = async () => {
-      const data = await AgentService.findAgents();
-      setAgents(data);
-      setLoading(false);
-    };
     fetchAgents();
   }, []);
 
@@ -26,6 +28,9 @@ export default function AgentsPage() {
 
       const result = await AgentService.createAgent();
       setCreatedAgentId(result.agentId);
+      
+      // Refresh the list to show the new agent
+      await fetchAgents();
     } catch (error) {
       setCreateError(error.message || 'Failed to create agent');
     } finally {

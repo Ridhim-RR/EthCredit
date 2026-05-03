@@ -111,11 +111,30 @@ router.post('/quote', async (req, res) => {
       return res.status(err.statusCode || 400).json({ error: err.message });
     }
 
+    // Get live quote from Uniswap V3 QuoterV2
+    let amountOut;
+    try {
+      const tokenInMeta = swapExecutionService.getTokenMetadata(tokenIn);
+      const amountBigInt = ethers.parseUnits(amount.toString(), tokenInMeta.decimals);
+      
+      amountOut = await swapExecutionService.getLiveQuote(tokenIn, tokenOut, amountBigInt);
+    } catch (err) {
+      console.error('Error fetching live quote:', err.message);
+      return res.status(502).json({ error: `Quoter failed: ${err.message}` });
+    }
+
+    const tokenOutMeta = swapExecutionService.getTokenMetadata(tokenOut);
+    const amountOutFormatted = ethers.formatUnits(amountOut, tokenOutMeta.decimals);
+
     res.json({
+      success: true,
       tokenIn,
       tokenOut,
       amountIn: amount,
-      message: 'Quote service coming soon',
+      amountOut: amountOut.toString(),
+      amountOutFormatted: amountOutFormatted,
+      fee: 3000,
+      priceImpact: "low"
     });
   } catch (err) {
     console.error('Error getting swap quote:', err.message);

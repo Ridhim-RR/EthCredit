@@ -7,6 +7,7 @@ const swapService = require('./swapService');
 
 // Base Sepolia Uniswap V3 SwapRouter address
 const UNISWAP_V3_ROUTER_ADDRESS = '0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4';
+const UNISWAP_V3_QUOTER_ADDRESS = '0xC5290058841028F1614F3A6F0F5816cAd0df5E27';
 
 // ERC20 ABI for approve and allowance functions
 const ERC20_ABI = [
@@ -18,9 +19,14 @@ const ERC20_ABI = [
 
 // Uniswap V3 SwapRouter ABI (partial, for exactInputSingle)
 const UNISWAP_V3_ROUTER_ABI = [
-  'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96) params) external payable returns (uint256)',
-  'function exactOutputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountOut, uint256 amountInMaximum, uint160 sqrtPriceLimitX96) params) external payable returns (uint256)',
+  'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96) params) external payable returns (uint256)',
+  'function exactOutputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountOut, uint256 amountInMaximum, uint160 sqrtPriceLimitX96) params) external payable returns (uint256)',
   'function unwrapWETH9(uint256 amountMinimum, address recipient) external payable',
+];
+
+// Uniswap V3 QuoterV2 ABI (partial, for quoteExactInputSingle)
+const UNISWAP_V3_QUOTER_ABI = [
+  'function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96) params) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)',
 ];
 
 /**
@@ -34,6 +40,47 @@ function getUniswapRouter(provider) {
   }
 
   return new ethers.Contract(UNISWAP_V3_ROUTER_ADDRESS, UNISWAP_V3_ROUTER_ABI, provider);
+}
+
+/**
+ * Get Uniswap V3 Quoter instance
+ * @param {ethers.JsonRpcProvider} provider - Ethers provider instance
+ * @returns {ethers.Contract} Uniswap V3 Quoter contract instance
+ */
+function getUniswapQuoter(provider) {
+  if (!provider) {
+    throw new Error('Provider is required');
+  }
+
+  return new ethers.Contract(UNISWAP_V3_QUOTER_ADDRESS, UNISWAP_V3_QUOTER_ABI, provider);
+}
+
+/**
+ * Get live price quote from Uniswap V3 Quoter
+ * @param {string} tokenInAddress - Input token address
+ * @param {string} tokenOutAddress - Output token address
+ * @param {BigInt} amountIn - Input amount in wei
+ * @param {number} fee - Pool fee tier
+ * @returns {Promise<BigInt>} Quoted output amount in wei
+ */
+async function getLiveQuote(tokenInAddress, tokenOutAddress, amountIn, fee = 3000) {
+  try {
+    const provider = getProvider();
+    const quoter = getUniswapQuoter(provider);
+
+    const quote = await quoter.quoteExactInputSingle.staticCall({
+      tokenIn: tokenInAddress,
+      tokenOut: tokenOutAddress,
+      amountIn: amountIn,
+      fee: fee,
+      sqrtPriceLimitX96: 0,
+    });
+
+    return quote.amountOut;
+  } catch (err) {
+    console.error(`[swapExecutionService] Quoter failed: ${err.message}`);
+    throw new Error(`Failed to fetch price quote from Uniswap: ${err.shortMessage || err.message}`);
+  }
 }
 
 /**
@@ -123,13 +170,18 @@ async function approveERC20Token(wallet, tokenAddress, spenderAddress, amount) {
  * @param {string} tokenSymbol - Token symbol (e.g., 'USDC', 'WETH')
  * @returns {Object} Token metadata (address, decimals, etc.)
  */
-function getTokenMetadata(tokenSymbol) {
+function getTokenMetadata(tokenIdentifier) {
   const catalog = tokenCatalog.getTokenCatalog ? tokenCatalog.getTokenCatalog() : tokenCatalog;
   const tokens = catalog.tokens || catalog;
-  const token = tokens.find((t) => t.symbol.toUpperCase() === tokenSymbol.toUpperCase());
+  
+  // Try to find by symbol first, then by address
+  const token = tokens.find((t) => 
+    t.symbol.toUpperCase() === tokenIdentifier.toUpperCase() ||
+    t.address.toLowerCase() === tokenIdentifier.toLowerCase()
+  );
 
   if (!token) {
-    const error = new Error(`Token not found: ${tokenSymbol}`);
+    const error = new Error(`Token not found: ${tokenIdentifier}`);
     error.statusCode = 400;
     throw error;
   }
@@ -225,24 +277,26 @@ function getTokenMetadata(tokenSymbol) {
         wallet
       );
 
-      const swapParams = swapData.params;
+      const swapParams = { ...swapData.params };
+      
+      // Note: SwapRouter02 on Base Sepolia does not use deadline in the struct itself.
+      // If a deadline is needed, it must be wrapped in a multicall.
+      // For now, we call exactInputSingle directly.
 
-      // Send swap transaction (BYPASSED FOR TESTNET DEMO)
-      // const tx = await router.exactInputSingle(swapParams);
-      // const receipt = await tx.wait();
+      // Send swap transaction
+      console.log(`[swapExecutionService] Sending swap transaction for agent ${agentId}...`);
+      const tx = await router.exactInputSingle(swapParams);
+      console.log(`[swapExecutionService] Transaction sent: ${tx.hash}`);
+      
+      const receipt = await tx.wait();
 
-      // if (!receipt || receipt.status !== 1) {
-      //   const error = new Error('Swap transaction failed on-chain');
-      //   error.statusCode = 500;
-      //   throw error;
-      // }
+      if (!receipt || receipt.status !== 1) {
+        const error = new Error('Swap transaction failed on-chain');
+        error.statusCode = 500;
+        throw error;
+      }
 
-      // --- MOCK EXECUTION FOR DEMONSTRATION ---
-      const crypto = require('crypto');
-      const mockTxHash = "0x" + crypto.randomBytes(32).toString('hex');
-      const receipt = { status: 1, hash: mockTxHash };
-      console.log(`[swapExecutionService] MOCK SWAP EXECUTED: ${mockTxHash}`);
-      // ----------------------------------------
+      console.log(`[swapExecutionService] Swap executed successfully: ${receipt.hash}`);
 
       // Log transaction to database
       const logResult = await swapService.logSwapTransaction({
@@ -311,22 +365,16 @@ function getTokenMetadata(tokenSymbol) {
 
       const amountInBigInt = BigInt(amountIn.toString());
 
-      // For now, use a simple swap ratio calculation
-      // In production, this would call Uniswap quoter or on-chain pricing
-      let expectedOutput;
+      // Fetch live quote from Uniswap V3 Quoter
+      console.log(`[swapExecutionService] Fetching live quote for ${amountInBigInt.toString()} from ${tokenIn} to ${tokenOut}...`);
+      const expectedOutput = await getLiveQuote(
+        tokenInMeta.address,
+        tokenOutMeta.address,
+        amountInBigInt,
+        fee
+      );
 
-      if (tokenIn.toUpperCase() === 'USDC' && tokenOutMeta.symbol.toUpperCase() === 'WETH') {
-        // USDC has 6 decimals, WETH has 18
-        // Approximate ratio: 1 USDC ≈ 0.0004 WETH (at ~2500 USD/ETH)
-        // More precise: use (USDC amount / 2500) * 10^12
-        expectedOutput = (amountInBigInt * BigInt(10 ** 12)) / BigInt(2500);
-      } else if (tokenIn.toUpperCase() === 'WETH' && tokenOutMeta.symbol.toUpperCase() === 'USDC') {
-        // WETH to USDC: reverse ratio
-        // ~2500 USDC per ETH
-        expectedOutput = (amountInBigInt * BigInt(2500)) / BigInt(10 ** 12);
-      } else {
-        throw new Error('Unsupported token pair for swap building');
-      }
+      console.log(`[swapExecutionService] Live quote received: ${expectedOutput.toString()} (approx ${ethers.formatUnits(expectedOutput, tokenOutMeta.decimals)} ${tokenOut})`);
 
       const minOutput = calculateMinimumOutput(expectedOutput, slippage);
 
@@ -337,7 +385,6 @@ function getTokenMetadata(tokenSymbol) {
         tokenOut: tokenOutMeta.address,
         fee, // Pool fee tier (500 = 0.05%, 3000 = 0.3%, 10000 = 1%)
         recipient: walletAddress,
-        deadline: Math.floor(Date.now() / 1000) + 300, // 5 minutes
         amountIn: amountInBigInt,
         amountOutMinimum: minOutput,
         sqrtPriceLimitX96: 0, // No price limit
@@ -484,18 +531,21 @@ function getTokenMetadata(tokenSymbol) {
   }
 
 function validateTokenPair(tokenIn, tokenOut) {
+  const tokenInMeta = getTokenMetadata(tokenIn);
+  const tokenOutMeta = getTokenMetadata(tokenOut);
+
   const validPairs = [
     ['USDC', 'WETH'],
     ['WETH', 'USDC'],
   ];
 
-  const tokenInUpper = tokenIn.toUpperCase();
-  const tokenOutUpper = tokenOut.toUpperCase();
+  const tokenInSymbol = tokenInMeta.symbol.toUpperCase();
+  const tokenOutSymbol = tokenOutMeta.symbol.toUpperCase();
 
-  const isValid = validPairs.some(([in_, out]) => in_ === tokenInUpper && out === tokenOutUpper);
+  const isValid = validPairs.some(([in_, out]) => in_ === tokenInSymbol && out === tokenOutSymbol);
 
   if (!isValid) {
-    const error = new Error(`Invalid token pair: ${tokenIn} -> ${tokenOut}. Only USDC <-> WETH swaps are supported.`);
+    const error = new Error(`Invalid token pair: ${tokenInSymbol} -> ${tokenOutSymbol}. Only USDC <-> WETH swaps are supported.`);
     error.statusCode = 400;
     throw error;
   }
@@ -517,4 +567,6 @@ module.exports = {
   executeSwapTransaction,
   getTokenMetadata,
   validateTokenPair,
+  getUniswapQuoter,
+  getLiveQuote,
 };

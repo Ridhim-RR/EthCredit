@@ -9,6 +9,7 @@ const escrowRouter = require('./routes/escrow');
 const walletProvisioningRouter = require('./routes/walletProvisioning');
 const agentRegistryRouter = require('./routes/agentRegistry');
 const agentRunnerRouter = require('./routes/agentRunner');
+const vaultRouter = require('./routes/vaultRoutes');
 
 dotenv.config();
 
@@ -71,6 +72,7 @@ app.use('/escrow', escrowRouter);
 app.use('/agent', agentRunnerRouter);
 app.use('/', walletProvisioningRouter);
 app.use('/', agentRegistryRouter);
+app.use('/api/vaults', vaultRouter);
 
 /**
  * Initialize server with database readiness check.
