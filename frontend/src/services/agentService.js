@@ -69,5 +69,24 @@ export const AgentService = {
       console.error('Error fetching agents:', error);
       return [];
     }
-  }
+  },
+
+  /**
+   * Fetch transaction logs for a specific agent.
+   */
+  async getAgentTransactions(agentId) {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/agent/transactions/${agentId}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to fetch agent logs');
+      }
+
+      return data.logs || [];
+    } catch (error) {
+      console.error('Error fetching agent logs:', error);
+      throw error;
+    }
+  },
 };
